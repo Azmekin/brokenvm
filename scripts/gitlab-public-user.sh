@@ -170,7 +170,7 @@ create_hint_repository() {
 # Company Internal Documentation
 
 ## Описание
-При онбординге для получение доступов к internal репозиториям обратитесь к 👤 Username: $VICTIM_USERNAME" 📧 Email: $VICTIM_EMAIL". Если Вам нужно сбросить пароль и у вас проблемы с получением письма на почту, также обратитесь к нему.
+You should write to 👤 Username: $VICTIM_USERNAME" 📧 Email: $VICTIM_EMAIL" for access to internal repos or in case of troubles with mail.
 EOF
     
     git add .
