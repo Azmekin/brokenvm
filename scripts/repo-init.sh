@@ -49,7 +49,7 @@ create_gitlab_project() {
         -H "Content-Type: application/json" \
         -d "{
             \"name\": \"$PROJECT_NAME\",
-            \"visibility\": \"public\",
+            \"visibility\": \"internal\",
             \"initialize_with_readme\": \"false\"
         }" > /dev/null
     

@@ -14,6 +14,7 @@ fi
 GITLAB_URL="${1:-http://$(hostname -I | awk '{print $1}')}"
 GITLAB_DIR="/opt/gitlab"
 DOCKER_COMPOSE_FILE="$GITLAB_DIR/docker-compose.yml"
+VULNERABLE_VERSION="16.5.6-ce.0"
 
 echo "📦 Установка Docker..."
 apt-get update
@@ -29,10 +30,11 @@ echo "🐳 Создание docker-compose.yml..."
 cat > $DOCKER_COMPOSE_FILE << EOF
 version: '3.6'
 services:
-  web:
-    image: 'gitlab/gitlab-ce:latest'
-    restart: always
-    hostname: 'gitlab.example.com'
+gitlab:
+    image: "gitlab/gitlab-ce:${VULNERABLE_VERSION}"
+    container_name: gitlab-vulnerable
+    restart: unless-stopped
+    hostname: 'gitlab-vuln.local'
     environment:
       GITLAB_OMNIBUS_CONFIG: |
         external_url '${GITLAB_URL}'
@@ -40,14 +42,48 @@ services:
         gitlab_rails['gitlab_shell_ssh_port'] = 2222
         nginx['listen_port'] = 80
         nginx['listen_https'] = false
+        
+        # Уязвимая конфигурация почты
+        gitlab_rails['smtp_enable'] = true
+        gitlab_rails['smtp_address'] = "mailhog"
+        gitlab_rails['smtp_port'] = 1025
+        gitlab_rails['smtp_user_name'] = ""
+        gitlab_rails['smtp_password'] = ""
+        gitlab_rails['smtp_domain'] = "gitlab-vuln.local"
+        gitlab_rails['smtp_authentication'] = "plain"
+        gitlab_rails['smtp_enable_starttls_auto'] = false
+        gitlab_rails['smtp_tls'] = false
+        
+        # Отключаем проверки безопасности для CTF
+        gitlab_rails['password_authentication_enabled_for_web'] = true
+        gitlab_rails['signup_enabled'] = true
+        gitlab_rails['require_two_factor_authentication'] = false
     ports:
-      - '80:80'
-      - '2222:22'
+      - '8081:80'
+      - '2223:22'
     volumes:
-      - './config:/etc/gitlab'
-      - './logs:/var/log/gitlab'
-      - './data:/var/opt/gitlab'
-    shm_size: '256m'
+      - '${GITLAB_DIR}/config:/etc/gitlab'
+      - '${GITLAB_DIR}/logs:/var/log/gitlab'
+      - '${GITLAB_DIR}/data:/var/opt/gitlab'
+    depends_on:
+      - mailhog
+    networks:
+      - ctf-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog-ctf
+    restart: unless-stopped
+    ports:
+      - '8025:8025'  # Web UI
+      - '1025:1025'  # SMTP server
+    networks:
+      - ctf-network
+    command: ["-storage=maildir", "-maildir-path=/tmp", "-smtp-bind-addr=0.0.0.0:1025"]
+
+networks:
+  ctf-network:
+    driver: bridge
 EOF
 
 echo "🎯 Запуск GitLab..."
