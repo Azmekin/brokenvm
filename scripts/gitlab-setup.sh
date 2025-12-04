@@ -30,7 +30,7 @@ echo "🐳 Создание docker-compose.yml..."
 cat > $DOCKER_COMPOSE_FILE << EOF
 version: '3.6'
 services:
-gitlab:
+  gitlab:
     image: "gitlab/gitlab-ce:${VULNERABLE_VERSION}"
     container_name: gitlab-vulnerable
     restart: unless-stopped
