@@ -5,8 +5,8 @@ set -e
 echo "🎯 Создание CTF пользователя и репозитория с подсказкой..."
 
 # Переменные
-GITLAB_URL="http://$(hostname -I | awk '{print $1}')"
-GITLAB_PORT="${GITLAB_PORT:-80}"
+GITLAB_URL="http://127.0.0.1"
+GITLAB_PORT="80"
 VICTIM_USERNAME="john_doe"
 VICTIM_EMAIL="john.doe@gitlab.local"
 VICTIM_PASSWORD="VictimPass123!"
@@ -193,8 +193,9 @@ main() {
     echo "🎯 Настройка CTF пользователя и репозиториев..."
     
     # Получаем пароль root
-    echo "🔐 Введите пароль root пользователя GitLab:"
-    read -s ROOT_PASSWORD
+    #TODO set passwd
+    #echo "🔐 Введите пароль root пользователя GitLab:"
+    export ROOT_PASSWORD="ChangeMe123!"
     
     wait_for_gitlab
     create_victim_user
