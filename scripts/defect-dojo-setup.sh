@@ -14,18 +14,12 @@ fi
 DD_DIR="/opt/defectdojo"
 DOCKER_COMPOSE_FILE="$DD_DIR/docker-compose.yml"
 
-echo "📦 Установка Docker..."
-apt-get update
-apt-get install -y curl git docker.io docker-compose
-systemctl enable docker
-systemctl start docker
-
 echo "📥 Загрузка DefectDojo..."
 mkdir -p $DD_DIR
 cd $DD_DIR
 
 if [ ! -d "$DD_DIR/django-DefectDojo" ]; then
-    git clone https://github.com/DefectDojo/django-DefectDojo.git .
+    git clone https://github.com/DefectDojo/django-DefectDojo.git ./dd
 else
     echo "⚠️ DefectDojo уже установлен, обновление..."
     git pull

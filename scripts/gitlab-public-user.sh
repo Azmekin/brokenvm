@@ -2,11 +2,16 @@
 
 set -e
 
+
+
+
+
+
 echo "🎯 Создание CTF пользователя и репозитория с подсказкой..."
 
 # Переменные
 GITLAB_URL="http://127.0.0.1"
-GITLAB_PORT="80"
+GITLAB_PORT="8081"
 VICTIM_USERNAME="john_doe"
 VICTIM_EMAIL="john.doe@gitlab.local"
 VICTIM_PASSWORD="VictimPass123!"
@@ -30,14 +35,14 @@ create_victim_user() {
     # Получаем root токен
     if docker ps | grep -q "gitlab"; then
         # Для Docker-установки
-        ROOT_TOKEN=$(docker exec gitlab_web_1 gitlab-rails runner "
+        ROOT_TOKEN=$(docker exec gitlab-vulnerable gitlab-rails runner "
         token = User.find_by_username('root').personal_access_tokens.create(
             scopes: [:api, :sudo], 
             name: 'ctf-victim-setup',
             expires_at: Time.now + 7.days
         )
         puts token.token
-        " 2>/dev/null)
+        ")
     else
         # Для native-установки
         ROOT_TOKEN=$(gitlab-rails runner "
@@ -178,7 +183,7 @@ EOF
     
     # Пушим в созданный репозиторий
     git push "http://root:${ROOT_PASSWORD}@${GITLAB_URL#http://}:${GITLAB_PORT}/root/${HINT_REPO_NAME}.git" main --force 2>/dev/null || \
-    git push "http://root:${ROOT_PASSWORD}@${GITLAB_URL#http://}/root/${HINT_REPO_NAME}.git" main --force
+    git push "http://root:${ROOT_PASSWORD}@${GITLAB_URL#http://}:${GITLAB_PORT}/root/${HINT_REPO_NAME}.git" main --force
     
     echo "✅ Репозиторий заполнен данными"
 }

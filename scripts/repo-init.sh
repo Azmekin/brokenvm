@@ -5,8 +5,8 @@ set -e
 echo "🚀 Запуск настройки с легковесной джобой и зашитым секретом..."
 
 # Переменные
-GITLAB_URL="http://$(hostname -I | awk '{print $1}')"
-DEFECTDOJO_URL="$GITLAB_URL:8080"
+GITLAB_URL="http://127.0.0.1:8081"
+DEFECTDOJO_URL="http://127.0.0.1:8080"
 GITLAB_ROOT_PASSWORD="NewSecurePassword123!"
 DEFECTDOJO_ADMIN_PASSWORD="NewSecurePassword123!"
 PROJECT_NAME="security-demo"
@@ -41,18 +41,24 @@ create_gitlab_project() {
     echo "📦 Создание проекта в GitLab..."
     
     # Получаем токен аутентификации
-    GITLAB_TOKEN=$(docker exec gitlab gitlab-rails runner "puts User.find_by_username('root').personal_access_tokens.create(scopes: [:api, :read_repository], name: 'setup-script').token")
+    GITLAB_TOKEN=$(docker exec gitlab-vulnerable gitlab-rails runner "
+token = User.find_by_username('john_doe').personal_access_tokens.create(
+scopes: [:api, :read_repository, :write_repository], 
+name: 'john_doe',
+expires_at: Time.now + 7.days)
+puts token.token" 2>/dev/null)
+    echo "$GITLAB_TOKEN"
+    
     
     # Создаем проект
-    curl -s -X POST "$GITLAB_URL/api/v4/projects" \
+    curl  -X POST "$GITLAB_URL/api/v4/projects" \
         -H "PRIVATE-TOKEN: $GITLAB_TOKEN" \
         -H "Content-Type: application/json" \
         -d "{
             \"name\": \"$PROJECT_NAME\",
-            \"visibility\": \"internal\",
+            \"visibility\": \"private\",
             \"initialize_with_readme\": \"false\"
-        }" > /dev/null
-    
+        }"
     echo $GITLAB_TOKEN > /tmp/gitlab_token.txt
 }
 
@@ -64,9 +70,14 @@ setup_defectdojo_readonly() {
     wait_for_service "$DEFECTDOJO_URL" "DefectDojo"
     
     # Смена пароля администратора
-    docker-compose -f /opt/defectdojo/docker-compose.yml exec -T uwsgi \
-        python3 manage.py changepassword admin --password "$DEFECTDOJO_ADMIN_PASSWORD"
-    
+    docker exec defectdojo_uwsgi_1  \
+        python3 manage.py shell -c "
+import django
+from django.contrib.auth.models import User
+u = User.objects.get(username='admin')
+u.set_password('$DEFECTDOJO_ADMIN_PASSWORD')
+u.save()
+print('saved new password')"    
     # Создаем пользователя только для чтения
     docker-compose -f /opt/defectdojo/docker-compose.yml exec -T uwsgi python3 manage.py shell << 'EOF'
 from dojo.models import User
@@ -112,9 +123,17 @@ EOF
 disable_defectdojo_registration() {
     echo "🔒 Отключение регистрации в DefectDojo..."
     
-    docker-compose -f /opt/defectdojo/docker-compose.yml exec -T db \
-        mysql -u defectdojo -pdefectdojo defectdojo -e \
-        "UPDATE dojo_system_settings SET enable_signup = 0 WHERE id = 1;"
+    docker-compose -f /opt/defectdojo/docker-compose.yml exec -T uswgi \
+        python3 manage.py shell -c "
+from dojo.models import System_Settings
+try:
+	settings = System_Settings.objects.get()
+	settings.enable_signup = False
+	settings.save()
+	print('reg off1')
+except:
+	System_Settings.objects.create(enable_signup=False)
+print('reg off2')"
 }
 
 # 6. Создание легковесного .gitlab-ci.yml с зашитым секретом
@@ -136,7 +155,7 @@ EOF
     )
     
     # Создаем легковесный .gitlab-ci.yml
-    cat > .gitlab-ci.yml << EOF
+    cat > .gitlab-ci.yml << 'EOF'
 # Lightweight Security Scan Pipeline
 # This job simulates security scanning without heavy processing
 
@@ -255,9 +274,14 @@ token_info:
       when: on_success
   tags: []
 EOF
-
+    cat .gitlab-ci.yml
+    git status
     git add .gitlab-ci.yml
+    git status
+    git add "$repo_dir"/.gitlab-ci.yml
+    git status
     git commit -m "Add utility function"
+    echo "endpipe"
 }
 
 # 7. Создание репозитория с CI пайплайном
@@ -273,8 +297,8 @@ create_repo_with_ci() {
     cd "$repo_dir"
     
     git init
-    git config user.email "root@localhost"
-    git config user.name "Administrator"
+    git config user.email "john_doe@localhost"
+    git config user.name "John Doe"
     git config commit.gpgsign false
     
     # Начальный коммит
@@ -318,19 +342,19 @@ EOF
     done
     # Добавляем легковесный CI пайплайн
     create_lightweight_ci
-
+    rm -f .gitlab-ci.yml
     # Еще несколько коммитов для демонстрации
     for i in {1..50}; do
-        echo "// Utility function" > "src/utils/util_$i.js"
-        echo "// Mock functionality" >> "src/utils/util_$i.js"
+        echo "// Utility function" > "src/utils/util2_$i.js"
+        echo "// Mock functionality" >> "src/utils/util2_$i.js"
         git add .
         git commit -m "Add utility function"
     done
 
     # Пушим в GitLab
     echo "📤 Пуш репозитория в GitLab..."
-    PROJECT_ID=$(curl -s "$GITLAB_URL/api/v4/projects?search=$PROJECT_NAME" -H "PRIVATE-TOKEN: $token" | jq '.[0].id')
-    git push "http://root:$GITLAB_ROOT_PASSWORD@${GITLAB_URL#http://}/root/$PROJECT_NAME.git" main --force
+    #PROJECT_ID=$(curl -s "$GITLAB_URL/api/v4/projects?search=$PROJECT_NAME" -H "PRIVATE-TOKEN: $token" | jq '.[0].id')
+    git push --set-upstream "http://john_doe:$GITLAB_TOKEN@${GITLAB_URL#http://}/john_doe/$PROJECT_NAME.git" master --force
 }
 
 # 8. Очистка
@@ -349,11 +373,13 @@ main() {
     wait_for_service "$DEFECTDOJO_URL" "DefectDojo"
     
     # Выполняем настройку
-    change_gitlab_password
-    disable_gitlab_registration
+    #change_gitlab_password
+    #disable_gitlab_registration
     create_gitlab_project
     setup_defectdojo_readonly
-    disable_defectdojo_registration
+    echo "Start dd disable reg"
+#    disable_defectdojo_registration
+    echo "Start  ci"
     create_repo_with_ci
     cleanup
     

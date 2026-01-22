@@ -29,17 +29,18 @@ create_ctf_secret_in_dd() {
     
     local result=$(docker-compose -f /opt/defectdojo/docker-compose.yml exec -T uwsgi python3 manage.py shell << EOF
 import os
-from dojo.models import Product, Engagement, Test, Finding
+from dojo.models import Product, Engagement, Test, Finding, Product_Type
 from django.contrib.auth.models import User
 from django.utils import timezone
 
 try:
+    prod_type,cr = Product_Type.objects.get_or_create( name="CTF")
     # Создаем или получаем продукт
     product, created = Product.objects.get_or_create(
         name="$PROJECT_NAME",
         defaults={
             'description': "CTF Security Project - Find the hidden secrets!",
-            'prod_type': 1  # Research and Development
+            'prod_type': prod_type  # Research and Development
         }
     )
     
@@ -57,11 +58,12 @@ try:
             'target_end': timezone.now().replace(year=2025)
         }
     )
-    
+    from dojo.models import Test_Type
+    test_type, _ = Test_Type.objects.get_or_create(name="Other")
     # Создаем тест
     test, created = Test.objects.get_or_create(
         engagement=engagement,
-        test_type=1,  # Other
+        test_type=test_type,  # Other
         defaults={
             'target_start': timezone.now(),
             'target_end': timezone.now().replace(year=2025),
